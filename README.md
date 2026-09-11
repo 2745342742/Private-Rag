@@ -1,7 +1,7 @@
 # Private RAG · 个人知识库
 
 多租户个人知识库 RAG：文档上传入库 → 混合检索 → 带引用问答，并支持 JSONL 本地评分。  
-技术栈：React + FastAPI + Postgres + Qdrant + LangChain，模型走阿里云百炼（OpenAI 兼容接口）。
+技术栈：React + FastAPI + Postgres + Qdrant + LangChain。
 
 
 ### 业务链路

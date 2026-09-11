@@ -1,0 +1,92 @@
+# Python bytecode and caches
+__pycache__/
+*.py[cod]
+*$py.class
+
+# Build artifacts
+build/
+dist/
+*.egg-info/
+**/*.egg-info/
+.eggs/
+
+# Virtual environments and env files
+.venv/
+venv/
+env/
+.env
+.env.*
+*.env
+!.env.example
+
+# Test and tool caches
+.pytest_cache/
+.coverage
+.coverage.*
+htmlcov/
+.cache/
+.mypy_cache/
+.ruff_cache/
+.pyright/
+
+# Jupyter
+.ipynb_checkpoints/
+
+# Logs
+logs/
+*.log
+
+# OS files
+.DS_Store
+Thumbs.db
+Desktop.ini
+
+# Editors/IDE
+.vscode/
+.idea/
+*.iml
+
+# Cursor / local agent
+.cursor/
+.codex/
+
+# Streamlit
+.streamlit/
+
+# Frontend / Node
+node_modules/
+.next/
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+app/frontend/dist/
+app/frontend/dist-ssr/
+
+# Docker local volumes
+qdrant_data/
+docker-data/
+
+# Local data（含示例语料与用户上传，均不上传）
+data/
+
+# 文档目录（面试/简历/预览等，非运行必需）
+docs/
+
+# 其它本地临时产物
+tmp/
+artifacts/
+configs/*
+!configs/default.china.yaml
+!configs/default.qdrant.yaml
+
+# Evals — 本地题库 / 运行时产物 / 报告
+evals/datasets/*.jsonl
+evals/datasets/_runtime_*.jsonl
+evals/reports/*
+evals/reports/**
+
+# Secrets / keys
+*.pem
+*.key
+credentials.json
+service-account*.json

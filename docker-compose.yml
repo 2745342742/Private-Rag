@@ -1,0 +1,56 @@
+# 一键启动：Postgres + 后端 + 前端（Qdrant 使用 Cloud，见 .env）
+# 用法：
+#   cp .env.example .env   # 填写百炼 / Qdrant / JWT
+#   docker compose up -d --build
+# 浏览器：http://localhost:8080
+
+services:
+  db:
+    image: postgres:16-alpine
+    environment:
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: postgres
+      POSTGRES_DB: rag_demo
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U postgres -d rag_demo"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+    restart: unless-stopped
+
+  backend:
+    build:
+      context: .
+      dockerfile: docker/Dockerfile.backend
+    env_file:
+      - .env
+    environment:
+      DATABASE_URL: postgresql://postgres:postgres@db:5432/rag_demo
+      RAG_CONFIG: configs/default.china.yaml
+      KNOWLEDGE_CORS_ALLOW_ORIGINS: http://localhost:8080,http://127.0.0.1:8080
+    volumes:
+      - upload_data:/app/data
+      - ./configs:/app/configs:ro
+    depends_on:
+      db:
+        condition: service_healthy
+    ports:
+      - "8002:8002"
+    restart: unless-stopped
+
+  frontend:
+    build:
+      context: .
+      dockerfile: docker/Dockerfile.frontend
+    depends_on:
+      backend:
+        condition: service_healthy
+    ports:
+      - "8080:80"
+    restart: unless-stopped
+
+volumes:
+  pgdata:
+  upload_data:

@@ -1,0 +1,74 @@
+project: bailian-qdrant-rag
+env:
+  openai_api_key: ${OPENAI_API_KEY}
+  openai_base_url: ${OPENAI_BASE_URL}
+  openai_organization: ${OPENAI_ORG_ID}
+  openai_project: ${OPENAI_PROJECT_ID}
+data:
+  # 平台入库走「文档」页上传；此处仅给 evals 自动出题等可选能力预留
+  paths: []
+  include_extensions:
+  - .pdf
+  - .md
+  - .html
+  - .txt
+  - .docx
+  - .csv
+  - .xml
+  exclude_globs:
+  - '**/node_modules/**'
+  - '**/.git/**'
+chunking:
+  # 实际使用 RecursiveCharacterTextSplitter；下列参数控制块大小
+  strategy: recursive
+  target_token_range:
+  - 300
+  - 700
+  overlap_tokens: 80
+embeddings:
+  provider: openai
+  model: text-embedding-v3
+  batch_size: 10
+  dimensions: 1024
+vector_store:
+  backend: custom
+  custom:
+    kind: qdrant
+    qdrant:
+      url: ${QDRANT_URL}
+      api_key: ${QDRANT_API_KEY}
+      collection: bailian_knowledge
+      distance: cosine
+      ef: 128
+      m: 64
+query:
+  # 混合检索：稠密向量 + BM25 + RRF（见 rag_lc/retrieve.py）
+  top_k: 8
+  max_context_tokens: 8000
+  citations:
+    include_spans: true
+    max_per_source: 3
+synthesis:
+  model: qwen-plus
+  reasoning_effort: low
+evals:
+  mode: auto
+  judge:
+    model: qwen-plus
+    style: single
+    rubric: qa_grounded
+    structured_outputs: false
+  thresholds:
+    pass_rate: 0.75
+    grounding_min: 0.8
+  auto:
+    items_target: 10
+    mix:
+      easy: 0.5
+      medium: 0.35
+      hard: 0.15
+    per_tag_cap: 20
+    qgen_workers: 2
+    exclude_patterns:
+    - confidential
+    - legal_hold

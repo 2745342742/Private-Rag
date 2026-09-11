@@ -1,0 +1,67 @@
+project: my-rag-project
+env:
+  openai_api_key: ${OPENAI_API_KEY}
+  openai_organization: ${OPENAI_ORG_ID}
+  openai_project: ${OPENAI_PROJECT_ID}
+data:
+  paths: []
+  include_extensions:
+  - .pdf
+  - .md
+  - .html
+  - .txt
+  - .docx
+  - .csv
+  - .xml
+  exclude_globs:
+  - '**/node_modules/**'
+  - '**/.git/**'
+chunking:
+  strategy: recursive
+  target_token_range:
+  - 400
+  - 800
+  overlap_tokens: 80
+embeddings:
+  provider: openai
+  model: text-embedding-3-large
+vector_store:
+  backend: custom
+  custom:
+    kind: qdrant
+    qdrant:
+      url: ${QDRANT_URL}
+      api_key: ${QDRANT_API_KEY}
+      collection: my_collection
+      distance: cosine
+      ef: 128
+      m: 64
+query:
+  top_k: 8
+  max_context_tokens: 4000
+  citations:
+    include_spans: true
+    max_per_source: 3
+synthesis:
+  model: gpt-5
+  reasoning_effort: low
+evals:
+  mode: auto
+  judge:
+    model: gpt-5-mini
+    style: single
+    rubric: qa_grounded
+    structured_outputs: true
+  thresholds:
+    pass_rate: 0.75
+    grounding_min: 0.8
+  auto:
+    items_target: 150
+    mix:
+      easy: 0.5
+      medium: 0.35
+      hard: 0.15
+    per_tag_cap: 30
+    exclude_patterns:
+    - confidential
+    - legal_hold

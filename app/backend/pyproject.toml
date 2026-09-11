@@ -1,0 +1,43 @@
+[project]
+name = "private-rag-backend"
+version = "0.1.0"
+description = "Private RAG 平台 FastAPI 后端"
+readme = "README.md"
+requires-python = ">=3.11"
+dependencies = [
+    "fastapi>=0.114.1,<0.116",
+    "httpx>=0.28,<0.29",
+    "uvicorn[standard]>=0.36,<0.37",
+    "openai>=1.40",
+    "rich>=13.7.1",
+    "python-dotenv>=1.0.1",
+    "qdrant-client>=1.13.3",
+    "psycopg[binary]>=3.2,<4",
+    "PyJWT>=2.8,<3",
+    "bcrypt>=4.1,<5",
+    "python-multipart>=0.0.9,<1",
+    "langchain>=1.0",
+    "langchain-core>=1.0",
+    "langchain-openai>=1.0",
+    "langchain-qdrant>=1.0",
+    "langchain-community>=0.4",
+    "langchain-text-splitters>=1.0",
+    "rank-bm25>=0.2.2",
+]
+
+[project.optional-dependencies]
+dev = [
+    "ruff>=0.6.4,<0.7",
+    "mypy>=1.8,<2",
+    "pytest>=8.0",
+]
+
+[build-system]
+requires = ["setuptools>=68.0", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[tool.ruff]
+line-length = 100
+
+[tool.ruff.lint]
+extend-select = ["I"]

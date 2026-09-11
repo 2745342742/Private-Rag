@@ -1,0 +1,44 @@
+# syntax=docker/dockerfile:1
+
+FROM python:3.12-slim AS runtime
+
+ENV PYTHONDONTWRITEBYTECODE=1 \
+    PYTHONUNBUFFERED=1 \
+    PIP_DISABLE_PIP_VERSION_CHECK=1 \
+    PYTHONPATH=/app \
+    RAG_CONFIG=configs/default.china.yaml
+
+WORKDIR /app
+
+RUN apt-get update \
+    && apt-get install -y --no-install-recommends curl \
+    && rm -rf /var/lib/apt/lists/*
+
+COPY pyproject.toml README.md ./
+COPY config ./config
+COPY rag_lc ./rag_lc
+COPY prompts ./prompts
+COPY configs ./configs
+COPY evals ./evals
+COPY app/backend ./app/backend
+
+# 后端依赖 + RAG/解析所需根依赖（通过 PYTHONPATH 导入）
+RUN pip install --no-cache-dir -e ./app/backend \
+    && pip install --no-cache-dir \
+        "pypdf>=4.2.0" \
+        "docx2txt>=0.8" \
+        "beautifulsoup4>=4.12.3" \
+        "lxml>=5.2.2" \
+        "pyyaml>=6.0.2" \
+        "pydantic>=2.7.1" \
+        "rich>=13.7.1"
+
+RUN mkdir -p /app/data/user_uploads
+
+WORKDIR /app/app/backend
+EXPOSE 8002
+
+HEALTHCHECK --interval=15s --timeout=5s --start-period=25s --retries=8 \
+  CMD curl -fsS http://127.0.0.1:8002/health || exit 1
+
+CMD ["uvicorn", "app.main:app", "--host", "0.0.0.0", "--port", "8002"]

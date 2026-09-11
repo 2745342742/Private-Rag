@@ -1,0 +1,58 @@
+[project]
+name = "private-rag"
+version = "0.1.0"
+description = "多租户个人知识库 RAG 平台：阿里云百炼（OpenAI 兼容）+ Qdrant + Postgres + React。"
+readme = "README.md"
+requires-python = ">=3.10"
+license = { text = "MIT" }
+keywords = ["RAG", "retrieval", "private-rag", "qdrant", "fastapi", "langchain"]
+classifiers = [
+  "Programming Language :: Python :: 3",
+  "License :: OSI Approved :: MIT License",
+  "Operating System :: OS Independent",
+]
+
+dependencies = [
+  "rich>=13.7.1",
+  "pyyaml>=6.0.2",
+  "pydantic>=2.7.1",
+  "pydantic-settings>=2.3.1",
+  "openai>=1.40.0",
+  "httpx>=0.27.0",
+  "fastapi>=0.111.0",
+  "uvicorn>=0.30.1",
+  "qdrant-client>=1.13.3",
+  "beautifulsoup4>=4.12.3",
+  "lxml>=5.2.2",
+  "pypdf>=4.2.0",
+  "docx2txt>=0.8",
+  "python-dotenv>=1.0.1",
+  "rank-bm25>=0.2.2",
+  "langchain>=1.0",
+  "langchain-core>=1.0",
+  "langchain-openai>=1.0",
+  "langchain-qdrant>=1.0",
+  "langchain-community>=0.4",
+  "langchain-text-splitters>=1.0",
+  "psycopg[binary]>=3.2,<4",
+  "PyJWT>=2.8,<3",
+  "bcrypt>=4.1,<5",
+  "python-multipart>=0.0.9,<1",
+]
+
+[tool.setuptools.packages.find]
+where = ["."]
+
+[tool.ruff]
+line-length = 100
+extend-select = ["W"]
+
+[tool.pyright]
+pythonVersion = "3.10"
+
+[build-system]
+requires = ["setuptools>=64", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[project.optional-dependencies]
+dev = ["pytest", "ruff", "pytest-cov"]

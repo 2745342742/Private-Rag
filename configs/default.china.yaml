@@ -50,14 +50,16 @@ query:
     max_per_source: 3
 synthesis:
   model: qwen-plus
+  fallback_model: qwen-turbo
   reasoning_effort: low
 evals:
   mode: auto
   judge:
-    model: qwen-plus
+    model: qwen-max
+    fallback_model: qwen-plus
     style: single
     rubric: qa_grounded
-    structured_outputs: false
+    structured_outputs: true
   thresholds:
     pass_rate: 0.75
     grounding_min: 0.8

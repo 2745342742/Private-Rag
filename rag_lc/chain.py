@@ -72,6 +72,36 @@ def _build_messages(
     return messages
 
 
+def _prepare_answer(
+    *,
+    cfg: Optional[RootConfig],
+    query: str,
+    history: Optional[List[Dict[str, str]]],
+    user_id: Optional[str],
+) -> tuple[RootConfig, List[Dict[str, Any]], list]:
+    cfg = cfg or load_runtime_cfg()
+    q = (query or "").strip()
+    if not q:
+        raise ValueError("query 不能为空")
+    rprint("[bold]LangChain RAG[/bold]：检索中…")
+    docs = retrieve_documents(q, cfg=cfg, user_id=user_id)
+    chunks = docs_to_chunks(docs)
+    messages = _build_messages(cfg=cfg, query=q, history=history, chunks=chunks)
+    return cfg, chunks, messages
+
+
+def _pack_answer(cfg: RootConfig, chunks: List[Dict[str, Any]], answer_text: str) -> Dict[str, Any]:
+    max_cite = getattr(getattr(cfg.query, "citations", None), "max_per_source", 8) or 8
+    citations = citations_from_chunks(chunks, max_items=int(max_cite))
+    rprint("[green]合成完成[/green]")
+    return {
+        "answer_text": answer_text,
+        "answer": answer_text,
+        "citations": citations,
+        "chunks": chunks,
+    }
+
+
 def iter_answer_query(
     store=None,
     cfg: Optional[RootConfig] = None,
@@ -80,20 +110,14 @@ def iter_answer_query(
     *,
     user_id: Optional[str] = None,
 ) -> Iterator[Dict[str, Any]]:
-    """流式 RAG：依次产出 status / token / final 事件。"""
+    """流式 RAG：依次产出 status / token / final 事件。对话页使用。"""
     _ = store
-    cfg = cfg or load_runtime_cfg()
-    q = (query or "").strip()
-    if not q:
-        raise ValueError("query 不能为空")
-
     yield {"type": "status", "stage": "retrieving"}
-    rprint("[bold]LangChain RAG[/bold]：检索中…")
-    docs = retrieve_documents(q, cfg=cfg, user_id=user_id)
-    chunks = docs_to_chunks(docs)
+    cfg, chunks, messages = _prepare_answer(
+        cfg=cfg, query=query, history=history, user_id=user_id
+    )
 
     yield {"type": "status", "stage": "generating"}
-    messages = _build_messages(cfg=cfg, query=q, history=history, chunks=chunks)
     llm = build_chat_model(cfg)
     rprint("[cyan]正在流式生成回答…[/cyan]")
 
@@ -105,17 +129,8 @@ def iter_answer_query(
         parts.append(piece)
         yield {"type": "token", "text": piece}
 
-    answer_text = "".join(parts)
-    max_cite = getattr(getattr(cfg.query, "citations", None), "max_per_source", 8) or 8
-    citations = citations_from_chunks(chunks, max_items=int(max_cite))
-    rprint("[green]合成完成[/green]")
-    yield {
-        "type": "final",
-        "answer_text": answer_text,
-        "answer": answer_text,
-        "citations": citations,
-        "chunks": chunks,
-    }
+    packed = _pack_answer(cfg, chunks, "".join(parts))
+    yield {"type": "final", **packed}
 
 
 def answer_query(
@@ -125,23 +140,16 @@ def answer_query(
     history: Optional[List[Dict[str, str]]] = None,
     *,
     user_id: Optional[str] = None,
+    model: Optional[str] = None,
 ) -> Dict[str, Any]:
-    """兼容旧签名：收集流式结果后一次性返回。"""
-    final: Dict[str, Any] = {}
-    for event in iter_answer_query(
-        store=store,
-        cfg=cfg,
-        query=query,
-        history=history,
-        user_id=user_id,
-    ):
-        if event.get("type") == "final":
-            final = event
-    if not final:
-        raise RuntimeError("生成未返回最终结果")
-    return {
-        "answer_text": final.get("answer_text") or "",
-        "answer": final.get("answer") or final.get("answer_text") or "",
-        "citations": final.get("citations") or [],
-        "chunks": final.get("chunks") or [],
-    }
+    """一次性生成。评测使用，避免流式长连接被网关掐断。"""
+    _ = store
+    cfg, chunks, messages = _prepare_answer(
+        cfg=cfg, query=query, history=history, user_id=user_id
+    )
+    llm = build_chat_model(cfg, model=model)
+    label = model or cfg.synthesis.model
+    rprint(f"[cyan]正在生成回答…[/cyan] model={label}")
+    msg = llm.invoke(messages)
+    answer_text = _content_to_text(getattr(msg, "content", None))
+    return _pack_answer(cfg, chunks, answer_text)

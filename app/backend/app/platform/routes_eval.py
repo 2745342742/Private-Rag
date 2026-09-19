@@ -113,6 +113,19 @@ def create_run(
     return run
 
 
+@router.post("/runs/{run_id}/cancel")
+def cancel_run(
+    run_id: str,
+    user: dict[str, Any] = Depends(auth.get_current_user),
+) -> dict[str, Any]:
+    try:
+        return eval_svc.cancel_eval_run(user_id=user["id"], run_id=run_id)
+    except ValueError as exc:
+        detail = str(exc)
+        code = 404 if "不存在" in detail else 409
+        raise HTTPException(status_code=code, detail=detail) from exc
+
+
 @router.get("/runs/{run_id}")
 def get_run(
     run_id: str,

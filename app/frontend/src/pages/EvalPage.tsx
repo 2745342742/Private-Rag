@@ -1,5 +1,5 @@
 import { FormEvent, useCallback, useEffect, useRef, useState } from "react";
-import { History, Loader2, Play, Trash2, Upload } from "lucide-react";
+import { History, Loader2, Play, Square, Trash2, Upload } from "lucide-react";
 
 import { apiFetch, ApiError } from "../lib/api";
 
@@ -259,6 +259,24 @@ export default function EvalPage() {
     }
   };
 
+  const onCancel = async () => {
+    if (!run?.id || run.status !== "running") return;
+    if (!window.confirm("确定取消本次评分？已完成的题目会保留。")) return;
+    setBusy(true);
+    setError(null);
+    try {
+      const data = await apiFetch<EvalRun>(`/eval/runs/${run.id}/cancel`, {
+        method: "POST",
+      });
+      setRun(data);
+      await reloadHistory(data.dataset_id);
+    } catch (err) {
+      setError(err instanceof ApiError ? err.detail : "取消失败");
+    } finally {
+      setBusy(false);
+    }
+  };
+
   const running = run?.status === "running";
   const startDisabled = busy || !selectedId || running;
 
@@ -361,6 +379,17 @@ export default function EvalPage() {
               )}
               {running ? "评分进行中…" : "开始评分"}
             </button>
+            {running ? (
+              <button
+                type="button"
+                onClick={() => void onCancel()}
+                disabled={busy}
+                className="inline-flex items-center justify-center gap-1.5 rounded-xl border border-amber-300 bg-amber-50 px-4 py-2 text-sm font-medium text-amber-800 hover:bg-amber-100 disabled:opacity-60 dark:border-amber-800/60 dark:bg-amber-950/40 dark:text-amber-200 dark:hover:bg-amber-950/70"
+              >
+                <Square className="h-3.5 w-3.5 fill-current" />
+                取消评分
+              </button>
+            ) : null}
             <button
               type="button"
               title="删除题库"

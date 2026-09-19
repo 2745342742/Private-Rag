@@ -127,6 +127,8 @@ def _default_system_prompt() -> str:
 
 class SynthesisConfig(BaseModel):
     model: str = "gpt-5"
+    # 评测答题在主模型断连/超时耗尽后降级；对话不使用
+    fallback_model: Optional[str] = None
     system_prompt: str = Field(default_factory=_default_system_prompt)
     structured_outputs: bool = True
     reasoning_effort: Literal["low", "medium", "high"] = "low"
@@ -134,6 +136,8 @@ class SynthesisConfig(BaseModel):
 
 class JudgeConfig(BaseModel):
     model: str = "gpt-5-mini"
+    # 主裁判断连/超时耗尽后降级；再失败才回退启发式
+    fallback_model: Optional[str] = None
     style: Literal["single"] = "single"
     rubric: Literal["qa_grounded"] = "qa_grounded"
     structured_outputs: bool = True

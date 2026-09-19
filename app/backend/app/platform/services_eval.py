@@ -14,6 +14,24 @@ from . import db
 
 PROJECT_ROOT = Path(__file__).resolve().parents[4]
 
+# 进程内取消信号：run_id -> Event（BackgroundTasks 与 API 同进程时生效）
+_CANCEL_EVENTS: dict[str, threading.Event] = {}
+_CANCEL_LOCK = threading.Lock()
+
+
+def _get_cancel_event(run_id: str) -> threading.Event:
+    with _CANCEL_LOCK:
+        ev = _CANCEL_EVENTS.get(run_id)
+        if ev is None:
+            ev = threading.Event()
+            _CANCEL_EVENTS[run_id] = ev
+        return ev
+
+
+def _clear_cancel_event(run_id: str) -> None:
+    with _CANCEL_LOCK:
+        _CANCEL_EVENTS.pop(run_id, None)
+
 
 def list_datasets(user_id: str) -> list[dict[str, Any]]:
     with db.get_conn() as conn:
@@ -204,18 +222,22 @@ def start_eval_run(*, user_id: str, dataset_id: str) -> dict[str, Any]:
 
 def execute_eval_run(*, user_id: str, run_id: str, dataset_id: str) -> None:
     """后台执行评测：逐题落库，结束后更新 run 状态。"""
+    cancel_event = _get_cancel_event(run_id)
     try:
         with db.get_conn() as conn:
             owned = db.fetchone(
                 conn,
                 """
-                SELECT id FROM eval_runs
+                SELECT id, status FROM eval_runs
                 WHERE id = %s AND user_id = %s AND dataset_id = %s
                 """,
                 (run_id, user_id, dataset_id),
             )
             if not owned:
                 print(f"[eval] 跳过未知 run={run_id}")
+                return
+            if owned.get("status") == "cancelled" or cancel_event.is_set():
+                print(f"[eval] run={run_id} 已取消，跳过执行")
                 return
 
         jsonl_path = _write_temp_jsonl(dataset_id)
@@ -235,37 +257,34 @@ def execute_eval_run(*, user_id: str, run_id: str, dataset_id: str) -> None:
             config_path=_cfg_hint(),
             user_id=user_id,
             on_result=on_result,
+            cancel_check=cancel_event.is_set,
         )
-        rows = summary.get("rows") or []
-        with db.get_conn() as conn:
-            existing = db.fetchone(
-                conn,
-                "SELECT COUNT(*) AS c FROM eval_results WHERE run_id = %s",
-                (run_id,),
-            )
-        if int((existing or {}).get("c") or 0) == 0 and rows:
-            for row in rows:
-                try:
-                    _persist_eval_result(run_id, row)
-                except Exception:  # noqa: BLE001
-                    pass
+        was_cancelled = bool(summary.get("cancelled")) or cancel_event.is_set()
 
         with db.get_conn() as conn:
             result_count, passed, _item_total = _run_counts(
                 conn, run_id=run_id, dataset_id=dataset_id
             )
             pass_rate = (passed / result_count) if result_count > 0 else 0.0
-            conn.execute(
+            final_status = "cancelled" if was_cancelled else "succeeded"
+            # 仅当仍为 running 时收尾，避免覆盖用户已取消 / 其它终态
+            updated = db.fetchone(
+                conn,
                 """
                 UPDATE eval_runs
-                SET status = 'succeeded', pass_rate = %s, finished_at = now()
-                WHERE id = %s
+                SET status = %s, pass_rate = %s, finished_at = now()
+                WHERE id = %s AND status = 'running'
+                RETURNING id
                 """,
-                (pass_rate, run_id),
+                (final_status, pass_rate, run_id),
             )
-        print(
-            f"[eval] run={run_id} 完成 results={result_count} pass_rate={pass_rate:.3f}"
-        )
+        if updated:
+            print(
+                f"[eval] run={run_id} {final_status} "
+                f"results={result_count} pass_rate={pass_rate:.3f}"
+            )
+        else:
+            print(f"[eval] run={run_id} 收尾跳过（状态已非 running）")
     except Exception as exc:  # noqa: BLE001
         print(f"[eval] run={run_id} 失败：{exc}")
         try:
@@ -278,12 +297,51 @@ def execute_eval_run(*, user_id: str, run_id: str, dataset_id: str) -> None:
                     """
                     UPDATE eval_runs
                     SET status = 'failed', pass_rate = %s, finished_at = now()
-                    WHERE id = %s
+                    WHERE id = %s AND status = 'running'
                     """,
                     (pass_rate, run_id),
                 )
         except Exception as mark_exc:  # noqa: BLE001
             print(f"[eval] 标记 failed 失败：{mark_exc}")
+    finally:
+        _clear_cancel_event(run_id)
+
+
+def cancel_eval_run(*, user_id: str, run_id: str) -> dict[str, Any]:
+    """请求取消进行中的评分；已启动的单题可能仍会跑完。"""
+    # 先发取消信号，尽快打断提交新题
+    _get_cancel_event(run_id).set()
+    with db.get_conn() as conn:
+        run = db.fetchone(
+            conn,
+            """
+            SELECT id, dataset_id, status FROM eval_runs
+            WHERE id = %s AND user_id = %s
+            """,
+            (run_id, user_id),
+        )
+        if not run:
+            raise ValueError("评分任务不存在")
+        if run["status"] != "running":
+            raise ValueError("任务未在进行中，无法取消")
+        result_count, passed, _item_total = _run_counts(
+            conn, run_id=run_id, dataset_id=str(run["dataset_id"])
+        )
+        pass_rate = (passed / result_count) if result_count > 0 else None
+        updated = db.fetchone(
+            conn,
+            """
+            UPDATE eval_runs
+            SET status = 'cancelled', pass_rate = %s, finished_at = now()
+            WHERE id = %s AND user_id = %s AND status = 'running'
+            RETURNING id
+            """,
+            (pass_rate, run_id, user_id),
+        )
+        if not updated:
+            raise ValueError("任务未在进行中，无法取消")
+    print(f"[eval] run={run_id} 已请求取消")
+    return get_run(user_id, run_id)
 
 
 def run_eval(*, user_id: str, dataset_id: str) -> dict[str, Any]:

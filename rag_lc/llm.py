@@ -73,10 +73,12 @@ def build_embeddings(cfg: Optional[RootConfig] = None) -> OpenAIEmbeddings:
     return OpenAIEmbeddings(**kwargs)
 
 
-def build_chat_model(cfg: Optional[RootConfig] = None) -> ChatOpenAI:
+def build_chat_model(
+    cfg: Optional[RootConfig] = None, *, model: Optional[str] = None
+) -> ChatOpenAI:
     cfg = cfg or load_runtime_cfg()
     return ChatOpenAI(
-        model=cfg.synthesis.model,
+        model=model or cfg.synthesis.model,
         api_key=_api_key(cfg),
         base_url=_base_url(cfg),
         temperature=0.2,

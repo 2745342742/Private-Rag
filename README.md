@@ -1,6 +1,6 @@
 # Private RAG · 个人知识库
 
-多租户个人知识库 RAG：文档上传入库 → 混合检索 → 带引用问答，并支持 JSONL 本地评分。  
+多租户个人知识库 RAG：文档上传入库 → 混合检索 → 带引用问答，并支持 JSONL 本地评分。用户可根据个人收录的知识库文档进行相关问答。
 技术栈：React + FastAPI + Postgres + Qdrant + LangChain。
 
 
@@ -10,7 +10,7 @@
 |------|------|
 | **入库** | 上传 → 落盘 → Postgres 记元数据 → `rag_lc` 切块 → 百炼嵌入（批次 ≤10）→ Qdrant upsert（带 `user_id`） |
 | **问答** | 发消息 → 按 `user_id` 混合检索 → 拼上下文 → 百炼生成 → 写回消息与 citations |
-| **评分** | 导入 JSONL 题库 → 逐题走同一套问答 → LLM/启发式 judge → 存 `eval_runs` / `eval_results` |
+| **评分** | 导入 JSONL 题库 → 逐题走同一套问答 → LLM/启发式 judge → 存 `eval_runs` / `eval_results` ，依据正确性和有据性来进行批判|
 
 **隔离模型**：Postgres 按 `user_id` 过滤；Qdrant 共用 collection，靠 payload `metadata.user_id` 过滤。
 
@@ -73,7 +73,7 @@ make run-app-frontend
 - **个人知识库平台** — JWT 登录、会话、文档上传删除、评测历史
 - **国内模型** — 百炼兼容模式（对话 + `text-embedding-v3`）
 - **向量库** — Qdrant Cloud / 本地
-- **评测** — JSONL 题库导入、本地 judge、历史查看与删除
+- **评测** — 通过大模型进行离线自动评测，评测题集包含普通题集，挑战集(侧重无答案与错误前提，用于检验拒答与防幻觉能力）通过率约97%。，评测整体，JSONL 题库导入、本地 judge、历史查看与删除
 
 ## 仓库结构
 
